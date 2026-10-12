@@ -10,6 +10,7 @@ from ..deps import get_current_user, require_manager, require_staff
 from ..models import (
     HousekeepingStatus,
     MaintenanceTicket,
+    Person,
     Priority,
     Property,
     TicketStatus,
@@ -74,6 +75,10 @@ def create_ticket(
 ):
     if not db.get(Property, payload.property_id):
         raise HTTPException(404, "Property not found")
+    if payload.unit_id and not db.get(Unit, payload.unit_id):
+        raise HTTPException(404, "Unit not found")
+    if payload.reported_by_id and not db.get(Person, payload.reported_by_id):
+        raise HTTPException(404, "Reporter not found")
     t = MaintenanceTicket(**payload.model_dump())
     db.add(t)
 

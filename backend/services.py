@@ -10,7 +10,6 @@ from sqlalchemy import Integer, cast, func, or_
 from sqlalchemy.orm import Session
 
 from .models import (
-    Bed,
     Booking,
     BookingStatus,
     ChargeType,

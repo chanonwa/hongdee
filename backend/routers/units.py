@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
@@ -15,6 +15,14 @@ def _to_out(unit: Unit) -> UnitOut:
     out = UnitOut.model_validate(unit)
     out.property_name = unit.property.name if unit.property else None
     return out
+
+
+def _name_taken(db: Session, property_id: int, name: str, unit_id: int | None = None) -> bool:
+    """Unit names are unique per property; checking first turns a clash into a 409, not a 500."""
+    q = db.query(Unit.id).filter(Unit.property_id == property_id, Unit.name == name)
+    if unit_id:
+        q = q.filter(Unit.id != unit_id)
+    return q.first() is not None
 
 
 @router.get("", response_model=list[UnitOut])
@@ -49,6 +57,8 @@ def create_unit(
 ):
     if not db.get(Property, payload.property_id):
         raise HTTPException(404, "Property not found")
+    if _name_taken(db, payload.property_id, payload.name):
+        raise HTTPException(409, "This property already has a unit with that name")
     data = payload.model_dump(exclude={"bed_count"})
     unit = Unit(**data)
     db.add(unit)
@@ -74,7 +84,10 @@ def update_unit(
     unit = db.get(Unit, unit_id)
     if not unit:
         raise HTTPException(404, "Unit not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and _name_taken(db, unit.property_id, data["name"], unit.id):
+        raise HTTPException(409, "This property already has a unit with that name")
+    for field, value in data.items():
         setattr(unit, field, value)
     db.commit()
     db.refresh(unit)
@@ -100,6 +113,8 @@ def list_beds(unit_id: int, db: Session = Depends(get_db), _: User = Depends(get
 def create_bed(payload: BedCreate, db: Session = Depends(get_db), _: User = Depends(require_manager)):
     if not db.get(Unit, payload.unit_id):
         raise HTTPException(404, "Unit not found")
+    if db.query(Bed.id).filter(Bed.unit_id == payload.unit_id, Bed.label == payload.label).first():
+        raise HTTPException(409, "This unit already has a bed with that label")
     bed = Bed(**payload.model_dump())
     db.add(bed)
     db.commit()

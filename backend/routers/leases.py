@@ -122,7 +122,11 @@ def update_lease(
     lease = db.get(Lease, lease_id)
     if not lease:
         raise HTTPException(404, "Lease not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    end = data.get("end_date", lease.end_date)
+    if end and end < lease.start_date:
+        raise HTTPException(422, "end_date must be on or after start_date")
+    for field, value in data.items():
         setattr(lease, field, value)
     if lease.status in (LeaseStatus.ended, LeaseStatus.terminated) and lease.unit:
         lease.unit.status = UnitStatus.available

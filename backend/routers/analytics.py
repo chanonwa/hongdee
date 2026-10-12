@@ -18,7 +18,6 @@ from ..models import (
     Invoice,
     InvoiceStatus,
     Lease,
-    LeaseStatus,
     MaintenanceTicket,
     Payment,
     Priority,

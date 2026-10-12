@@ -1,7 +1,6 @@
 """HongDee - FastAPI application entrypoint."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from contextlib import asynccontextmanager

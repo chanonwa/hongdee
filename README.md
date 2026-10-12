@@ -118,7 +118,7 @@ backend/
   routers/         one module per resource
   seed.py          realistic demo portfolio with 14 months of history
 frontend/          single-page console: no build step, no framework
-tests/             24 end-to-end API tests
+tests/             29 end-to-end API tests
 docs/              screenshots used in this README
 ```
 
@@ -140,15 +140,17 @@ auto-inverted.
 ## Tests
 
 ```bash
-python -m pytest tests -q      # 24 passed
+python -m pytest tests -q      # 29 passed
 ```
 
 Coverage focuses on the rules that are expensive to get wrong: double-booking a bed,
 back-to-back stays that must *not* clash, overlapping tenancies, idempotent rent runs,
 part-payment status transitions, overpayment rejection, arrears bucketing, urgent-ticket
-unit blocking, invoice numbers staying unique after deletions, and role gates (read-only
-users can't write, front desk can't delete contacts). Each run uses a throwaway SQLite
-database.
+unit blocking, invoice numbers staying unique after deletions, role gates (read-only
+users can't write, front desk can't delete contacts), and input checks that answer with a
+4xx instead of a 500: duplicate unit names and bed labels, a bed from another unit, lease
+edits with an out-of-range billing day or an end before the start, unknown references and
+nulls sent for required fields. Each run uses a throwaway SQLite database.
 
 ## Not in the draft yet
 

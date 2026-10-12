@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..deps import get_current_user, require_manager, require_staff
-from ..models import Invoice, InvoiceStatus, Payment, Person, User
+from ..models import Booking, Invoice, InvoiceStatus, Lease, Payment, Person, Property, User
 from ..schemas import (
     ArrearsRow,
     InvoiceCreate,
@@ -81,6 +81,9 @@ def create_invoice(
 ):
     if not db.get(Person, payload.person_id):
         raise HTTPException(404, "Person not found")
+    for model, ref in ((Property, payload.property_id), (Lease, payload.lease_id), (Booking, payload.booking_id)):
+        if ref and not db.get(model, ref):
+            raise HTTPException(404, f"{model.__name__} not found")
     inv = Invoice(**payload.model_dump(), number=next_invoice_number(db, payload.issue_date))
     db.add(inv)
     db.commit()

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import (
     BookingStatus,
@@ -24,6 +25,20 @@ from .models import (
 )
 
 ORM = ConfigDict(from_attributes=True)
+
+
+class PatchModel(BaseModel):
+    """A PATCH body: any field may be left out, but the fields named in `not_null` are NOT NULL
+    columns, so an explicit null is rejected here rather than failing in the database."""
+
+    not_null: ClassVar[tuple[str, ...]] = ()
+
+    @model_validator(mode="after")
+    def _reject_nulls(self) -> PatchModel:
+        nulls = [f for f in self.not_null if f in self.model_fields_set and getattr(self, f) is None]
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)} cannot be null")
+        return self
 
 
 # ------------------------------- auth ------------------------------------- #
@@ -68,7 +83,8 @@ class PropertyCreate(PropertyBase):
     pass
 
 
-class PropertyUpdate(BaseModel):
+class PropertyUpdate(PatchModel):
+    not_null = ("name", "type", "currency")
     name: str | None = None
     type: PropertyType | None = None
     address_line1: str | None = None
@@ -125,7 +141,8 @@ class UnitCreate(UnitBase):
     bed_count: int = 0  # auto-generate this many beds for a dorm
 
 
-class UnitUpdate(BaseModel):
+class UnitUpdate(PatchModel):
+    not_null = ("name", "type", "bedrooms", "bathrooms", "capacity", "status", "housekeeping")
     name: str | None = None
     type: UnitType | None = None
     floor: int | None = None
@@ -167,7 +184,8 @@ class PersonCreate(PersonBase):
     pass
 
 
-class PersonUpdate(BaseModel):
+class PersonUpdate(PatchModel):
+    not_null = ("type", "full_name")
     type: PersonType | None = None
     full_name: str | None = None
     email: EmailStr | None = None
@@ -188,6 +206,12 @@ class PersonOut(PersonBase):
 
 
 # ------------------------------- leases ----------------------------------- #
+def _billing_day_in_range(v: int) -> int:
+    if not 1 <= v <= 28:
+        raise ValueError("billing_day must be between 1 and 28")
+    return v
+
+
 class LeaseBase(BaseModel):
     unit_id: int
     person_id: int
@@ -204,16 +228,21 @@ class LeaseBase(BaseModel):
     @field_validator("billing_day")
     @classmethod
     def _valid_day(cls, v: int) -> int:
-        if not 1 <= v <= 28:
-            raise ValueError("billing_day must be between 1 and 28")
-        return v
+        return _billing_day_in_range(v)
 
 
 class LeaseCreate(LeaseBase):
-    pass
+    @field_validator("end_date")
+    @classmethod
+    def _not_before_start(cls, v: date | None, info) -> date | None:
+        start = info.data.get("start_date")
+        if v and start and v < start:
+            raise ValueError("end_date must be on or after start_date")
+        return v
 
 
-class LeaseUpdate(BaseModel):
+class LeaseUpdate(PatchModel):
+    not_null = ("rent_amount", "billing_day", "deposit_amount", "status")
     end_date: date | None = None
     rent_amount: float | None = None
     billing_day: int | None = None
@@ -221,6 +250,13 @@ class LeaseUpdate(BaseModel):
     status: LeaseStatus | None = None
     notice_date: date | None = None
     notes: str | None = None
+
+    # Without this check a PATCH could store any day; LeaseOut then refused the row,
+    # so every lease listing failed until the value was fixed by hand.
+    @field_validator("billing_day")
+    @classmethod
+    def _valid_day(cls, v: int | None) -> int | None:
+        return v if v is None else _billing_day_in_range(v)
 
 
 class LeaseOut(LeaseBase):
@@ -260,7 +296,8 @@ class BookingCreate(BookingBase):
     pass
 
 
-class BookingUpdate(BaseModel):
+class BookingUpdate(PatchModel):
+    not_null = ("check_in", "check_out", "guests", "nightly_rate", "channel", "commission_rate", "status")
     check_in: date | None = None
     check_out: date | None = None
     bed_id: int | None = None
@@ -382,7 +419,8 @@ class TicketCreate(TicketBase):
     pass
 
 
-class TicketUpdate(BaseModel):
+class TicketUpdate(PatchModel):
+    not_null = ("title", "priority", "status", "cost")
     title: str | None = None
     description: str | None = None
     category: str | None = None

@@ -21,7 +21,6 @@ from .models import (
     ExpenseCategory,
     HousekeepingStatus,
     Invoice,
-    InvoiceStatus,
     Lease,
     LeaseStatus,
     MaintenanceTicket,
@@ -40,7 +39,7 @@ from .models import (
     User,
 )
 from .security import hash_password
-from .services import next_invoice_number, refresh_invoice_status
+from .services import refresh_invoice_status
 
 random.seed(20260815)
 
@@ -278,7 +277,6 @@ def seed(db: Session) -> None:  # noqa: PLR0915 - a seed script is meant to be l
     ch_probs = [w for _, w, _ in channel_weights]
     ch_comm = {c: k for c, _, k in channel_weights}
 
-    occupied: dict[tuple[int, int], set[date]] = {}  # (unit_id, bed_id) -> nights taken
     ref_seq = {"n": 0}
 
     # Seasonality: share of nights sold, by calendar month.

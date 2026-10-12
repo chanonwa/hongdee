@@ -41,6 +41,14 @@ def _to_out(db: Session, bk: Booking) -> BookingOut:
     return out
 
 
+def _check_bed(db: Session, bed_id: int, unit_id: int) -> None:
+    """The availability check only looks at the booked unit, so a bed from another unit
+    would slip past it and could be sold twice."""
+    bed = db.get(Bed, bed_id)
+    if not bed or bed.unit_id != unit_id:
+        raise HTTPException(404, "Bed not found in that unit")
+
+
 @router.get("/availability", response_model=list[AvailableUnit])
 def availability(
     check_in: date,
@@ -128,8 +136,8 @@ def create_booking(
         raise HTTPException(404, "Unit not found")
     if not db.get(Person, payload.person_id):
         raise HTTPException(404, "Guest not found")
-    if payload.bed_id and not db.get(Bed, payload.bed_id):
-        raise HTTPException(404, "Bed not found")
+    if payload.bed_id:
+        _check_bed(db, payload.bed_id, unit.id)
 
     if not is_slot_free(db, payload.unit_id, payload.check_in, payload.check_out, payload.bed_id):
         raise HTTPException(409, "That unit/bed is already booked for those dates")
@@ -183,6 +191,8 @@ def update_booking(
     new_bed = data.get("bed_id", bk.bed_id)
     if new_out <= new_in:
         raise HTTPException(422, "check_out must be after check_in")
+    if data.get("bed_id") is not None:
+        _check_bed(db, data["bed_id"], bk.unit_id)
 
     moving = ("check_in" in data or "check_out" in data or "bed_id" in data)
     if moving and not is_slot_free(db, bk.unit_id, new_in, new_out, new_bed, exclude_booking_id=bk.id):

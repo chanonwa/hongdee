@@ -9,7 +9,7 @@ import pytest
 
 TMP = tempfile.mkdtemp()
 os.environ["DATABASE_URL"] = f"sqlite:///{TMP}/test.db"
-os.environ["SECRET_KEY"] = "test-secret"
+os.environ["SECRET_KEY"] = "test-secret-long-enough-for-hs256-keys"  # PyJWT warns below 32 bytes
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -77,6 +77,15 @@ def test_duplicate_property_code_rejected(client, fixtures):
     assert r.status_code == 409
 
 
+def test_duplicate_unit_name_and_bed_label_rejected(client, fixtures):
+    """Both are unique per parent; a clash used to surface as an HTTP 500."""
+    prop, dorm = fixtures["prop"]["id"], fixtures["dorm"]
+    assert client.post("/api/units", json={"property_id": prop, "name": "Flat 1"}).status_code == 409
+    assert client.patch(f"/api/units/{dorm['id']}", json={"name": "Flat 1"}).status_code == 409
+    clash = client.post("/api/units/beds", json={"unit_id": dorm["id"], "label": dorm["beds"][0]["label"]})
+    assert clash.status_code == 409
+
+
 # -------------------------------------------------------------- bookings ---
 def test_booking_blocks_the_same_bed_twice(client, fixtures):
     bed = fixtures["dorm"]["beds"][0]["id"]
@@ -130,6 +139,17 @@ def test_checkout_before_checkin_rejected(client, fixtures):
     assert r.status_code == 422
 
 
+def test_booking_bed_must_belong_to_the_unit(client, fixtures):
+    """Availability is checked per unit, so a bed from another unit could have been sold twice."""
+    body = {"unit_id": fixtures["flat"]["id"], "bed_id": fixtures["dorm"]["beds"][0]["id"],
+            "person_id": fixtures["guest"]["id"], "check_in": "2033-01-01", "check_out": "2033-01-03",
+            "nightly_rate": 20}
+    assert client.post("/api/bookings", json=body).status_code == 404
+
+    bk = client.post("/api/bookings", json={**body, "unit_id": fixtures["dorm"]["id"], "bed_id": None}).json()
+    assert client.patch(f"/api/bookings/{bk['id']}", json={"bed_id": 999999}).status_code == 404
+
+
 # ---------------------------------------------------------------- leases ---
 def test_overlapping_lease_on_one_unit_rejected(client, fixtures):
     body = {"unit_id": fixtures["flat"]["id"], "person_id": fixtures["tenant"]["id"],
@@ -149,6 +169,21 @@ def test_invalid_billing_day_rejected(client, fixtures):
         "unit_id": fixtures["flat"]["id"], "person_id": fixtures["tenant"]["id"],
         "start_date": "2040-01-01", "rent_amount": 500, "billing_day": 31})
     assert r.status_code == 422
+
+
+def test_lease_edits_are_validated(client, fixtures):
+    """A PATCH used to store any billing day, after which every lease listing returned 500."""
+    lease = client.post("/api/leases", json={
+        "unit_id": fixtures["flat"]["id"], "person_id": fixtures["tenant"]["id"],
+        "start_date": "2045-01-01", "end_date": "2045-12-31", "rent_amount": 950}).json()
+    for change in ({"billing_day": 0}, {"billing_day": 31}, {"end_date": "2044-12-31"}, {"status": None}):
+        assert client.patch(f"/api/leases/{lease['id']}", json=change).status_code == 422, change
+    assert client.get("/api/leases").status_code == 200
+
+    backwards = client.post("/api/leases", json={
+        "unit_id": fixtures["flat"]["id"], "person_id": fixtures["tenant"]["id"],
+        "start_date": "2050-06-01", "end_date": "2050-01-01", "rent_amount": 950})
+    assert backwards.status_code == 422
 
 
 # --------------------------------------------------------------- billing ---
@@ -242,6 +277,31 @@ def test_urgent_ticket_takes_unit_offline_then_returns_it(client, fixtures):
 
     client.patch(f"/api/maintenance/{t['id']}", json={"status": "resolved"})
     assert client.get(f"/api/units/{fixtures['dorm']['id']}").json()["status"] == "available"
+
+
+# ------------------------------------------------------------- validation ---
+def test_unknown_references_rejected(client, fixtures):
+    """A missing foreign key used to fail inside the database with a 500."""
+    today = str(date.today())
+    inv = client.post("/api/billing/invoices", json={
+        "person_id": fixtures["tenant"]["id"], "lease_id": 999999,
+        "issue_date": today, "due_date": today, "amount": 10})
+    assert inv.status_code == 404
+    ticket = client.post("/api/maintenance", json={
+        "property_id": fixtures["prop"]["id"], "unit_id": 999999, "title": "Leak", "reported_at": today})
+    assert ticket.status_code == 404
+
+
+def test_patch_cannot_null_a_required_field(client, fixtures):
+    """An explicit null used to reach a NOT NULL column, or the date maths, and return 500."""
+    assert client.patch(f"/api/units/{fixtures['flat']['id']}", json={"name": None}).status_code == 422
+    assert client.patch(f"/api/people/{fixtures['guest']['id']}", json={"full_name": None}).status_code == 422
+    bk = client.post("/api/bookings", json={
+        "unit_id": fixtures["dorm"]["id"], "person_id": fixtures["guest"]["id"],
+        "check_in": "2034-02-01", "check_out": "2034-02-02", "nightly_rate": 20}).json()
+    assert client.patch(f"/api/bookings/{bk['id']}", json={"check_in": None}).status_code == 422
+    # Nullable columns can still be cleared.
+    assert client.patch(f"/api/bookings/{bk['id']}", json={"notes": None}).status_code == 200
 
 
 # ------------------------------------------------------------------ roles ---
