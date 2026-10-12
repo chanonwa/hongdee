@@ -23,7 +23,7 @@ from backend.security import hash_password  # noqa: E402
 def _db():
     init_db()
     db = SessionLocal()
-    db.add(User(email="t@hongdee.co.uk", full_name="Tester", role=Role.admin,
+    db.add(User(email="t@rentdee.co.uk", full_name="Tester", role=Role.admin,
                 hashed_password=hash_password("test1234")))
     db.commit()
     db.close()
@@ -32,7 +32,7 @@ def _db():
 @pytest.fixture(scope="session")
 def client(_db):
     c = TestClient(app)
-    r = c.post("/api/auth/login", data={"username": "t@hongdee.co.uk", "password": "test1234"})
+    r = c.post("/api/auth/login", data={"username": "t@rentdee.co.uk", "password": "test1234"})
     assert r.status_code == 200, r.text
     c.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
     return c
@@ -58,7 +58,7 @@ def test_health(client):
 
 
 def test_login_rejects_bad_password(client):
-    r = client.post("/api/auth/login", data={"username": "t@hongdee.co.uk", "password": "nope"})
+    r = client.post("/api/auth/login", data={"username": "t@rentdee.co.uk", "password": "nope"})
     assert r.status_code == 401
 
 
@@ -307,9 +307,9 @@ def test_patch_cannot_null_a_required_field(client, fixtures):
 # ------------------------------------------------------------------ roles ---
 def test_viewer_cannot_write(client, fixtures):
     client.post("/api/auth/users", json={
-        "email": "v@hongdee.co.uk", "full_name": "Vera Viewer", "role": "viewer", "password": "viewer1234"})
+        "email": "v@rentdee.co.uk", "full_name": "Vera Viewer", "role": "viewer", "password": "viewer1234"})
     with TestClient(app) as v:
-        tok = v.post("/api/auth/login", data={"username": "v@hongdee.co.uk", "password": "viewer1234"}).json()
+        tok = v.post("/api/auth/login", data={"username": "v@rentdee.co.uk", "password": "viewer1234"}).json()
         v.headers.update({"Authorization": f"Bearer {tok['access_token']}"})
         assert v.get("/api/properties").status_code == 200
         assert v.post("/api/people", json={"full_name": "Nope"}).status_code == 403
@@ -318,10 +318,10 @@ def test_viewer_cannot_write(client, fixtures):
 def test_front_desk_cannot_delete_people(client):
     """Deleting a contact cascades to their leases, bookings and invoices, so it is manager-only."""
     client.post("/api/auth/users", json={
-        "email": "fd@hongdee.co.uk", "full_name": "Fran Frontdesk", "role": "staff", "password": "frontdesk1234"})
+        "email": "fd@rentdee.co.uk", "full_name": "Fran Frontdesk", "role": "staff", "password": "frontdesk1234"})
     person = client.post("/api/people", json={"full_name": "Delete Me", "type": "guest"}).json()
     with TestClient(app) as fd:
-        tok = fd.post("/api/auth/login", data={"username": "fd@hongdee.co.uk", "password": "frontdesk1234"}).json()
+        tok = fd.post("/api/auth/login", data={"username": "fd@rentdee.co.uk", "password": "frontdesk1234"}).json()
         fd.headers.update({"Authorization": f"Bearer {tok['access_token']}"})
         assert fd.post("/api/people", json={"full_name": "Walk-in"}).status_code == 201  # day-to-day work still allowed
         assert fd.delete(f"/api/people/{person['id']}").status_code == 403

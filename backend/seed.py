@@ -77,10 +77,10 @@ def seed(db: Session) -> None:  # noqa: PLR0915 - a seed script is meant to be l
 
     # ---------------------------------------------------------------- users --
     users = [
-        ("admin@hongdee.co.uk", "Alex Rivera", Role.admin, "admin1234"),
-        ("manager@hongdee.co.uk", "Morgan Lee", Role.manager, "manager1234"),
-        ("frontdesk@hongdee.co.uk", "Sam Patel", Role.staff, "frontdesk1234"),
-        ("owner@hongdee.co.uk", "Jordan Blake", Role.viewer, "viewer1234"),
+        ("admin@rentdee.co.uk", "Alex Rivera", Role.admin, "admin1234"),
+        ("manager@rentdee.co.uk", "Morgan Lee", Role.manager, "manager1234"),
+        ("frontdesk@rentdee.co.uk", "Sam Patel", Role.staff, "frontdesk1234"),
+        ("owner@rentdee.co.uk", "Jordan Blake", Role.viewer, "viewer1234"),
     ]
     for email, full_name, role, pw in users:
         db.add(User(email=email, full_name=full_name, role=role, hashed_password=hash_password(pw)))

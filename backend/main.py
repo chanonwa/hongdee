@@ -1,4 +1,4 @@
-"""HongDee - FastAPI application entrypoint."""
+"""RentDee - FastAPI application entrypoint."""
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,4 +1,4 @@
-# HongDee — apartment & hostel management
+# RentDee — apartment & hostel management
 
 A working draft of a property management system that covers **both** businesses in one
 data model: long-stay residential lettings (apartments → leases → recurring monthly rent)
@@ -34,10 +34,10 @@ Open <http://127.0.0.1:8000> — API docs live at `/api/docs`.
 
 | Demo account | Password | Access |
 |---|---|---|
-| `admin@hongdee.co.uk` | `admin1234` | everything, including user management |
-| `manager@hongdee.co.uk` | `manager1234` | everything except user management |
-| `frontdesk@hongdee.co.uk` | `frontdesk1234` | day-to-day operations: bookings, check-in/out, leases, payments, tickets. Can't void invoices, run the monthly rent run, delete records or add/remove properties, units and beds |
-| `owner@hongdee.co.uk` | `viewer1234` | read only |
+| `admin@rentdee.co.uk` | `admin1234` | everything, including user management |
+| `manager@rentdee.co.uk` | `manager1234` | everything except user management |
+| `frontdesk@rentdee.co.uk` | `frontdesk1234` | day-to-day operations: bookings, check-in/out, leases, payments, tickets. Can't void invoices, run the monthly rent run, delete records or add/remove properties, units and beds |
+| `owner@rentdee.co.uk` | `viewer1234` | read only |
 
 ## Screens
 
@@ -91,9 +91,9 @@ uvicorn backend.main:app --env-file .env
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `APP_NAME` | `HongDee` | name shown in the API docs and `/api/health` |
+| `APP_NAME` | `RentDee` | name shown in the API docs and `/api/health` |
 | `APP_ENV` | `development` | environment label returned by `/api/health` |
-| `DATABASE_URL` | `sqlite:///./hongdee.db` | SQLAlchemy URL — see the Postgres note below |
+| `DATABASE_URL` | `sqlite:///./rentdee.db` | SQLAlchemy URL — see the Postgres note below |
 | `SECRET_KEY` | dev placeholder | JWT signing key; **change before deploying** |
 | `ACCESS_TOKEN_TTL_MINUTES` | `720` | login token lifetime |
 | `DEFAULT_CURRENCY` | `GBP` | currency for analytics output |
