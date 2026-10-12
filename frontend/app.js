@@ -58,11 +58,15 @@
   const pct = (n) => `${Number(n || 0).toFixed(1)}%`;
   const num = (n) => Number(n || 0).toLocaleString();
   const title = (s) => String(s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const today = () => new Date().toISOString().slice(0, 10);
+  // Calendar dates in the browser's timezone. toISOString() is UTC, which put "today" a day out
+  // around midnight anywhere off UTC, and made addDays() fall a day short east of UTC (UK summer time included).
+  const isoDate = (t) =>
+    `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  const today = () => isoDate(new Date());
   const addDays = (iso, d) => {
     const t = new Date(iso + "T00:00:00");
     t.setDate(t.getDate() + d);
-    return t.toISOString().slice(0, 10);
+    return isoDate(t);
   };
   const fmtDate = (iso) =>
     iso ? new Date(iso + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" }) : "—";
