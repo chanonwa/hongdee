@@ -6,7 +6,7 @@ import random
 import string
 from datetime import date, timedelta
 
-from sqlalchemy import func, or_
+from sqlalchemy import Integer, cast, func, or_
 from sqlalchemy.orm import Session
 
 from .models import (
@@ -33,10 +33,19 @@ BLOCKING_BOOKING_STATUSES = (
 # Numbering
 # --------------------------------------------------------------------------- #
 def next_invoice_number(db: Session, when: date | None = None) -> str:
+    """Next free number for the month: highest existing sequence + 1.
+
+    Counting rows would hand out a number that is already taken as soon as an invoice
+    has been deleted, or when numbers came from another sequence (as the demo seed's do).
+    """
     when = when or date.today()
-    prefix = f"INV-{when:%Y%m}"
-    count = db.query(func.count(Invoice.id)).filter(Invoice.number.like(f"{prefix}%")).scalar() or 0
-    return f"{prefix}-{count + 1:04d}"
+    prefix = f"INV-{when:%Y%m}-"
+    highest = (
+        db.query(func.max(cast(func.substr(Invoice.number, len(prefix) + 1), Integer)))
+        .filter(Invoice.number.like(f"{prefix}%"))
+        .scalar()
+    )
+    return f"{prefix}{(highest or 0) + 1:04d}"
 
 
 def new_booking_reference(db: Session) -> str:

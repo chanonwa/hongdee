@@ -1,4 +1,4 @@
-/* Haven PMS — single page management console.
+/* HongDee — single page management console.
    No build step, no framework: fetch + template strings + event delegation. */
 
 (() => {
@@ -6,7 +6,7 @@
 
   // ----------------------------------------------------------------- state --
   const S = {
-    token: localStorage.getItem("haven_token") || null,
+    token: localStorage.getItem("hongdee_token") || null,
     user: null,
     route: "dashboard",
     currency: "GBP",
@@ -282,25 +282,25 @@
   function logout() {
     S.token = null;
     S.user = null;
-    localStorage.removeItem("haven_token");
+    localStorage.removeItem("hongdee_token");
     renderLogin();
   }
 
   function renderLogin(msg) {
     app().innerHTML = `<div class="login-wrap"><div class="login-card">
-      <h1>Haven <span style="color:var(--series-1)">PMS</span></h1>
+      <h1>Hong<span style="color:var(--series-1)">Dee</span></h1>
       <p class="sub">Apartment &amp; hostel management console</p>
       <form id="login-form">
-        ${F.text("username", "Email", "admin@havenpms.co.uk", true, "email")}
+        ${F.text("username", "Email", "admin@hongdee.co.uk", true, "email")}
         ${F.text("password", "Password", "admin1234", true, "password")}
         <button class="btn primary" style="width:100%;margin-top:6px" type="submit">Sign in</button>
       </form>
       ${msg ? `<p style="color:var(--critical);font-size:12.5px;margin-top:12px">${esc(msg)}</p>` : ""}
       <div class="demo-accounts"><strong>Demo accounts</strong>
-        <button data-acct="admin@havenpms.co.uk|admin1234">Admin — full access</button>
-        <button data-acct="manager@havenpms.co.uk|manager1234">Manager — no user admin</button>
-        <button data-acct="frontdesk@havenpms.co.uk|frontdesk1234">Front desk — operations only</button>
-        <button data-acct="owner@havenpms.co.uk|viewer1234">Owner — read only</button>
+        <button data-acct="admin@hongdee.co.uk|admin1234">Admin — full access</button>
+        <button data-acct="manager@hongdee.co.uk|manager1234">Manager — no user admin</button>
+        <button data-acct="frontdesk@hongdee.co.uk|frontdesk1234">Front desk — operations only</button>
+        <button data-acct="owner@hongdee.co.uk|viewer1234">Owner — read only</button>
       </div>
     </div></div>`;
 
@@ -318,7 +318,7 @@
         const r = await api("/api/auth/login", { method: "POST", form: fd });
         S.token = r.access_token;
         S.user = r.user;
-        localStorage.setItem("haven_token", r.access_token);
+        localStorage.setItem("hongdee_token", r.access_token);
         renderShell();
       } catch (err) {
         renderLogin(err.message);
@@ -342,7 +342,7 @@
   function renderShell() {
     app().innerHTML = `<div class="shell">
       <nav class="sidebar">
-        <div class="brand">Haven <span>PMS</span></div>
+        <div class="brand">Hong<span>Dee</span></div>
         ${NAV.map(([k, l, i]) => `<button class="nav-item" data-route="${k}"><span class="ic">${i}</span>${l}</button>`).join("")}
         <div class="nav-spacer"></div>
         <button class="nav-item" id="theme-toggle"><span class="ic">◐</span>Theme</button>
@@ -360,7 +360,7 @@
       const cur = document.documentElement.getAttribute("data-theme");
       const next = cur === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem("haven_theme", next);
+      localStorage.setItem("hongdee_theme", next);
       go(S.route);
     };
     go(S.route);
@@ -1074,7 +1074,7 @@
   };
 
   // ------------------------------------------------------------------ boot ---
-  const savedTheme = localStorage.getItem("haven_theme");
+  const savedTheme = localStorage.getItem("hongdee_theme");
   if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
 
   // Charts are sized in absolute units, so only a real width change needs a redraw.

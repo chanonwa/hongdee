@@ -1,4 +1,4 @@
-# Haven PMS — apartment & hostel management
+# HongDee — apartment & hostel management
 
 A working draft of a property management system that covers **both** businesses in one
 data model: long-stay residential lettings (apartments → leases → recurring monthly rent)
@@ -13,32 +13,39 @@ then reduced to what actually earns its place in a v1.
 
 ## Quick start
 
+Requires Python 3.10+.
+
 ```bash
 ./run.sh                      # installs deps, seeds demo data, serves on :8000
 ```
 
-Or manually:
+`run.sh` needs bash (Git Bash or WSL on Windows). The manual route works anywhere:
 
 ```bash
 pip install -r requirements.txt
-python -m backend.seed --reset      # 3 properties, 46 units, 28 leases, ~4,600 bookings, 14 months of history
+python -m backend.seed --reset      # rebuilds the demo database (drops existing tables first)
 uvicorn backend.main:app --reload
 ```
 
+The seed builds a demo portfolio of 3 properties, 46 units, 28 leases and about 4,500
+bookings, with 14 months of billing history.
+
 Open <http://127.0.0.1:8000> — API docs live at `/api/docs`.
 
-| Demo account | Password | Sees |
+| Demo account | Password | Access |
 |---|---|---|
-| `admin@havenpms.co.uk` | `admin1234` | everything, including user management |
-| `manager@havenpms.co.uk` | `manager1234` | everything except user management |
-| `frontdesk@havenpms.co.uk` | `frontdesk1234` | day-to-day operations, no deletes |
-| `owner@havenpms.co.uk` | `viewer1234` | read only |
+| `admin@hongdee.co.uk` | `admin1234` | everything, including user management |
+| `manager@hongdee.co.uk` | `manager1234` | everything except user management |
+| `frontdesk@hongdee.co.uk` | `frontdesk1234` | day-to-day operations: bookings, check-in/out, leases, payments, tickets. Can't void invoices, run the monthly rent run, delete records or add/remove properties, units and beds |
+| `owner@hongdee.co.uk` | `viewer1234` | read only |
 
 ## Screens
 
 ![Dashboard](docs/dashboard.png)
 
-Front desk and analytics screens are in `docs/frontdesk.png` and `docs/analytics.png`.
+![Front desk](docs/frontdesk.png)
+
+![Analytics](docs/analytics.png)
 
 ## What's in the draft
 
@@ -54,11 +61,12 @@ tenancies on one unit are rejected; an active lease flips the unit to occupied.
 
 **Bookings** — bed-level or whole-room reservations with half-open date intervals
 (checkout day is the next guest's arrival day), an availability search, channel and
-commission tracking, and front-desk check-in/check-out that flags housekeeping.
+commission tracking, and a front-desk board of today's arrivals, departures and in-house
+guests. Check-out flags the unit for housekeeping.
 
 **Billing** — one ledger for rent and accommodation. Idempotent monthly rent run,
-part-payments, automatic open/partial/paid/overdue transitions, and an aged-debt report
-bucketed at 30/60/90 days.
+part-payments, open/partial/paid/overdue statuses recomputed on every payment and on
+demand, and an aged-debt report bucketed at 30/60/90 days.
 
 **Maintenance** — ticketing with priority, assignee, cost and age. An urgent ticket takes
 the unit off sale; resolving it puts it back and flags it for cleaning.
@@ -71,11 +79,36 @@ ADR and RevPAR, channel mix with commission leakage, per-property NOI, per-unit 
 and a rule-based advisor that names the specific voids, under-market rents, overdue
 accounts, OTA dependency, stale repairs and upcoming renewals costing money right now.
 
+## Configuration
+
+Settings come from environment variables, and every default works for local development.
+`.env.example` lists them all. The app does not read `.env` by itself — export the
+variables, or hand the file to uvicorn:
+
+```bash
+uvicorn backend.main:app --env-file .env
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_NAME` | `HongDee` | name shown in the API docs and `/api/health` |
+| `APP_ENV` | `development` | environment label returned by `/api/health` |
+| `DATABASE_URL` | `sqlite:///./hongdee.db` | SQLAlchemy URL — see the Postgres note below |
+| `SECRET_KEY` | dev placeholder | JWT signing key; **change before deploying** |
+| `ACCESS_TOKEN_TTL_MINUTES` | `720` | login token lifetime |
+| `DEFAULT_CURRENCY` | `GBP` | currency for analytics output |
+| `CORS_ORIGINS` | `*` | comma-separated list of allowed origins |
+
+**Postgres.** Install the driver (`pip install "psycopg[binary]"`) and set
+`DATABASE_URL=postgresql+psycopg://user:password@host:5432/dbname`. The seed script reads the
+same variable, so export it before seeding. The test suite runs on SQLite only; Postgres is
+not covered by it.
+
 ## Architecture
 
 ```
 backend/
-  config.py        env-driven settings (SQLite dev → Postgres prod, one variable)
+  config.py        env-driven settings (SQLite by default, Postgres via DATABASE_URL)
   database.py      engine, session factory, declarative base
   models.py        SQLAlchemy 2.0 ORM — the domain model
   schemas.py       Pydantic request/response contracts
@@ -85,32 +118,37 @@ backend/
   routers/         one module per resource
   seed.py          realistic demo portfolio with 14 months of history
 frontend/          single-page console: no build step, no framework
-tests/             22 end-to-end API tests
+tests/             24 end-to-end API tests
+docs/              screenshots used in this README
 ```
 
 **Stack choice.** FastAPI + SQLAlchemy + SQLite/Postgres, with a dependency-free
 frontend. The API is fully typed and self-documenting, and the whole thing runs from
 one command — which matters more than framework fashion for a draft you want to
-evaluate quickly. Swapping SQLite for Postgres is a single environment variable.
+evaluate quickly. Swapping SQLite for Postgres is a `DATABASE_URL` change plus the
+driver (see Configuration).
 
 **Auth.** JWT bearer tokens, four roles (`admin`, `manager`, `staff`, `viewer`) enforced
 by dependency injection per endpoint rather than checked ad hoc inside handlers.
 
 **Frontend.** Vanilla JS with template strings and event delegation. Charts are
 hand-rendered SVG — a validated colourblind-safe palette, one y-axis per chart, hover
-tooltips, legends and a table view of every chart. Light and dark themes are separately
-specified rather than auto-inverted.
+tooltips, legends on multi-series charts and a monthly table view beneath the trend
+charts on the Analytics page. Light and dark themes are separately specified rather than
+auto-inverted.
 
 ## Tests
 
 ```bash
-python -m pytest tests -q      # 22 passed
+python -m pytest tests -q      # 24 passed
 ```
 
 Coverage focuses on the rules that are expensive to get wrong: double-booking a bed,
 back-to-back stays that must *not* clash, overlapping tenancies, idempotent rent runs,
 part-payment status transitions, overpayment rejection, arrears bucketing, urgent-ticket
-unit blocking, and role enforcement.
+unit blocking, invoice numbers staying unique after deletions, and role gates (read-only
+users can't write, front desk can't delete contacts). Each run uses a throwaway SQLite
+database.
 
 ## Not in the draft yet
 
@@ -124,8 +162,8 @@ Deliberately out of scope for v1, in rough priority order:
 4. **Automated messaging** — booking confirmation, pre-arrival, post-stay review request,
    arrears reminders at 3/7/14 days.
 5. **Document storage and e-signature** for tenancy agreements.
-6. **Dynamic pricing** — the analytics layer already computes ADR, RevPAR, pace and
-   channel mix, which is the input a rate engine needs.
+6. **Dynamic pricing** — the analytics layer already computes ADR, RevPAR and channel
+   mix, which is the input a rate engine needs.
 7. **Accounting export** (Xero / QuickBooks) and tax-ready reports.
 8. **Audit log** of who changed what.
 
@@ -133,5 +171,7 @@ Deliberately out of scope for v1, in rough priority order:
 
 - Set a real `SECRET_KEY` (≥ 32 random bytes) and a Postgres `DATABASE_URL`.
 - Restrict `CORS_ORIGINS` to your actual frontend origin.
-- Add Alembic before the schema has data you care about.
+- Tables are created with `create_all` at startup. Add Alembic before the schema has data
+  you care about.
 - Rate-limit `/api/auth/login`.
+- Don't seed a production database — the demo accounts above have published passwords.

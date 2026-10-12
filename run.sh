@@ -8,11 +8,11 @@ PY=${PYTHON:-python3}
 echo "→ installing dependencies"
 $PY -m pip install -q -r requirements.txt
 
-if [ ! -f haven.db ]; then
+if [ ! -f hongdee.db ]; then
   echo "→ seeding demo portfolio (this takes ~30s)"
   $PY -m backend.seed
 fi
 
-echo "→ starting Haven PMS on http://127.0.0.1:8000"
-echo "  sign in with admin@havenpms.co.uk / admin1234"
+echo "→ starting HongDee on http://127.0.0.1:8000"
+echo "  sign in with admin@hongdee.co.uk / admin1234"
 exec $PY -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000

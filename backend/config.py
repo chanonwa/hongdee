@@ -10,11 +10,11 @@ from functools import lru_cache
 
 
 class Settings:
-    APP_NAME: str = os.getenv("APP_NAME", "Haven PMS")
+    APP_NAME: str = os.getenv("APP_NAME", "HongDee")
     APP_ENV: str = os.getenv("APP_ENV", "development")
 
     # SQLite by default; set DATABASE_URL=postgresql+psycopg://... for Postgres.
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./haven.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./hongdee.db")
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-change-me-in-production")
     JWT_ALGORITHM: str = "HS256"

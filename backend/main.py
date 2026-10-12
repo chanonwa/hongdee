@@ -1,4 +1,4 @@
-"""Haven PMS - FastAPI application entrypoint."""
+"""HongDee - FastAPI application entrypoint."""
 from __future__ import annotations
 
 import os

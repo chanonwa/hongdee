@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from backend.database import SessionLocal, init_db  # noqa: E402
 from backend.main import app  # noqa: E402
-from backend.models import Role, User  # noqa: E402
+from backend.models import Invoice, Role, User  # noqa: E402
 from backend.security import hash_password  # noqa: E402
 
 
@@ -23,7 +23,7 @@ from backend.security import hash_password  # noqa: E402
 def _db():
     init_db()
     db = SessionLocal()
-    db.add(User(email="t@havenpms.co.uk", full_name="Tester", role=Role.admin,
+    db.add(User(email="t@hongdee.co.uk", full_name="Tester", role=Role.admin,
                 hashed_password=hash_password("test1234")))
     db.commit()
     db.close()
@@ -32,7 +32,7 @@ def _db():
 @pytest.fixture(scope="session")
 def client(_db):
     c = TestClient(app)
-    r = c.post("/api/auth/login", data={"username": "t@havenpms.co.uk", "password": "test1234"})
+    r = c.post("/api/auth/login", data={"username": "t@hongdee.co.uk", "password": "test1234"})
     assert r.status_code == 200, r.text
     c.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
     return c
@@ -58,7 +58,7 @@ def test_health(client):
 
 
 def test_login_rejects_bad_password(client):
-    r = client.post("/api/auth/login", data={"username": "t@havenpms.co.uk", "password": "nope"})
+    r = client.post("/api/auth/login", data={"username": "t@hongdee.co.uk", "password": "nope"})
     assert r.status_code == 401
 
 
@@ -197,6 +197,24 @@ def test_overdue_invoice_lands_in_arrears(client, fixtures):
     assert tina["d90_plus"] >= 250
 
 
+def test_invoice_numbers_stay_unique_after_a_gap(client, fixtures):
+    """Numbering used COUNT(*)+1, which re-issued a taken number as soon as any invoice
+    in the month was gone (or had been numbered from another sequence, as the seed does)."""
+    body = {"person_id": fixtures["tenant"]["id"], "charge_type": "other",
+            "issue_date": "2032-07-01", "due_date": "2032-07-31", "amount": 10}
+    first = client.post("/api/billing/invoices", json=body).json()
+    second = client.post("/api/billing/invoices", json=body).json()
+
+    db = SessionLocal()
+    db.query(Invoice).filter(Invoice.number == first["number"]).delete()
+    db.commit()
+    db.close()
+
+    third = client.post("/api/billing/invoices", json=body)
+    assert third.status_code == 201, third.text
+    assert third.json()["number"] not in (first["number"], second["number"])
+
+
 # -------------------------------------------------------------- analytics ---
 def test_summary_shape(client, fixtures):
     k = client.get("/api/analytics/summary").json()
@@ -229,9 +247,22 @@ def test_urgent_ticket_takes_unit_offline_then_returns_it(client, fixtures):
 # ------------------------------------------------------------------ roles ---
 def test_viewer_cannot_write(client, fixtures):
     client.post("/api/auth/users", json={
-        "email": "v@havenpms.co.uk", "full_name": "Vera Viewer", "role": "viewer", "password": "viewer1234"})
+        "email": "v@hongdee.co.uk", "full_name": "Vera Viewer", "role": "viewer", "password": "viewer1234"})
     with TestClient(app) as v:
-        tok = v.post("/api/auth/login", data={"username": "v@havenpms.co.uk", "password": "viewer1234"}).json()
+        tok = v.post("/api/auth/login", data={"username": "v@hongdee.co.uk", "password": "viewer1234"}).json()
         v.headers.update({"Authorization": f"Bearer {tok['access_token']}"})
         assert v.get("/api/properties").status_code == 200
         assert v.post("/api/people", json={"full_name": "Nope"}).status_code == 403
+
+
+def test_front_desk_cannot_delete_people(client):
+    """Deleting a contact cascades to their leases, bookings and invoices, so it is manager-only."""
+    client.post("/api/auth/users", json={
+        "email": "fd@hongdee.co.uk", "full_name": "Fran Frontdesk", "role": "staff", "password": "frontdesk1234"})
+    person = client.post("/api/people", json={"full_name": "Delete Me", "type": "guest"}).json()
+    with TestClient(app) as fd:
+        tok = fd.post("/api/auth/login", data={"username": "fd@hongdee.co.uk", "password": "frontdesk1234"}).json()
+        fd.headers.update({"Authorization": f"Bearer {tok['access_token']}"})
+        assert fd.post("/api/people", json={"full_name": "Walk-in"}).status_code == 201  # day-to-day work still allowed
+        assert fd.delete(f"/api/people/{person['id']}").status_code == 403
+    assert client.delete(f"/api/people/{person['id']}").status_code == 204

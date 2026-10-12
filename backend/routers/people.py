@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_current_user, require_staff
+from ..deps import get_current_user, require_manager, require_staff
 from ..models import Invoice, InvoiceStatus, Payment, Person, PersonType, User
 from ..schemas import PersonCreate, PersonOut, PersonUpdate
 
@@ -92,7 +92,8 @@ def update_person(
 
 
 @router.delete("/{person_id}", status_code=204)
-def delete_person(person_id: int, db: Session = Depends(get_db), _: User = Depends(require_staff)):
+def delete_person(person_id: int, db: Session = Depends(get_db), _: User = Depends(require_manager)):
+    """Manager-only: the delete cascades to the person's leases, bookings, invoices and payments."""
     person = db.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
